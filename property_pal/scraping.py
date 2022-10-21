@@ -59,6 +59,31 @@ def scrape_html(url, headers=None):
     return data, status_code
 
 
+def get_new_development_urls(soup):
+    """
+    Function to get URLS for individual
+    properties listed in new development pages.
+    
+    Parameters:
+    -----------
+    soup: bs4.BeautifulSoup
+        Obtained from scraping the new development page.
+        
+    Returns:
+    --------
+    List of URLS for developed properties.
+    """
+
+    urls = []
+    href_list = soup.find_all("a", href=True)
+
+    for i in href_list:
+        if i.find("strong") is not None:
+            urls.append(f"https://www.propertypal.com{i['href']}")
+    
+    return urls
+
+
 def pull(url, headers, page_type):
     
     status_code = "200"

@@ -5,7 +5,7 @@ pandas.DataFrame(). See scripts/pull_property_data.
 """
 
 import json
-import requests
+import re
 import time
 
 from bs4 import BeautifulSoup
@@ -72,6 +72,36 @@ def extract_key_info(property_dict):
     return output_dict
 
 
+def clean_text_description(property_dict):
+    """
+    Function to perform basic cleaning on
+    text description for a given property.
+    
+    Parameters:
+    -----------
+    property_dict: dict
+    
+    Returns:
+    --------
+    String contained slightly cleaned description
+    of property.
+    """
+
+    try:
+        description = property_dict["description"]
+    except KeyError:
+        return ""
+
+    description = (BeautifulSoup(description, features="lxml")
+                   .get_text()
+                   .replace('\xa015', '')
+                   .replace('\xa0', ''))
+
+    description = re.sub(r'(?<=[a-z])(?=[A-Z])', '\n', description)
+
+    return description
+
+
 def flatten_property(property_dict, page_type=None):
     """
     Extract desired information about a given property
@@ -91,12 +121,11 @@ def flatten_property(property_dict, page_type=None):
     information of interest about the property.
     """
 
-    property_rows = []
-
     def get_image_urls(property_dict):
         """
         Returns list of image urls for a given property.
         """
+
         image_urls = []
         try:
             for image in property_dict["images"]:
@@ -120,50 +149,21 @@ def flatten_property(property_dict, page_type=None):
 
         return value
 
-    property_info = {
-        "id": property_dict.get("id", ""),
-        "path_id": property_dict.get("pathId", ""),
-        "property_url": property_dict.get("shareURL", None),
-        "name": property_dict.get("name", ""),
-        "address": property_dict.get("displayAddress", ""),
-        "building_name": property_dict.get("buildingName", ""),
-        "house_number": property_dict.get("houseNumber", ""),
-        "street": property_dict.get("street", "") ,
-        "address_line_1": property_dict.get("addressLine1", ""),
-        "address_line_2": property_dict.get("addressLine2", ""),
-        "town": property_dict.get("town", ""),
-        "region": property_dict.get("region", ""),
-        "postcode": property_dict.get("postcode", ""),
-        "country_code": property_dict.get("countryCode", ""),
-        "furnished_type": property_dict.get("furnishedType", ""),
-        "num_bedrooms": property_dict.get("numBedrooms", ""),
-        "num_bathrooms": property_dict.get("numBathrooms", ""),
-        "num_reception_rooms": property_dict.get("numReceptionRooms", ""),
-        "images": get_image_urls(property_dict),
-        "first_posted": property_dict.get("activationTime", ""),
-        "last_updated": property_dict.get("listingUpdatedTime", ""),
-        "text_description": property_dict["briefText"]
-    }
-    
-    property_info["latitude"] = nested_get(property_dict, "coordinate", "latitude")
-    property_info["longitude"] = nested_get(property_dict, "coordinate", "longitude")
-    property_info["property_type"] = nested_get(property_dict, "propertyType", "key")
-    property_info["property_style"] = nested_get(property_dict, "style", "key")
-    property_info["sale_type"] = nested_get(property_dict, "saleType", "key")
-    property_info["epc_rating"] = nested_get(property_dict, "epc", "ratingShorthand")
-    property_info["co2_rating"] = nested_get(property_dict, "epc", "co2RatingShorthand")
-    property_info["organisation"] = nested_get(property_dict, "account", "organisation")
-    property_info["developer"] = nested_get(property_dict, "account", "developer")
-    property_info["agent"] = nested_get(property_dict, "account", "organisation")
-    property_info["development_status"] = nested_get(
-        property_dict, "developmentStatus", "key"
-    )
-    
-    property_info["min_price"] = nested_get(property_dict, "price", "minPrice")
-    property_info["max_price"] = nested_get(property_dict, "price", "maxPrice")
-    property_info["price"] = nested_get(property_dict, "price", "price")
-    
+    if page_type not in ["search", "property"]:
+        raise ValueError(
+            "`page_type` must be either `search` or `property`. "
+            f"Got {page_type}."
+        )
+
+    property_rows = []
+
     if page_type == "search":
+        property_info = {
+            "id": property_dict.get("id", ""),
+            "path_id": property_dict.get("pathId", ""),
+            "property_url": property_dict.get("shareURL", None),
+        }
+
         if property_dict.get("history"):
             for update in property_dict["history"]:
                 property_instance = property_info.copy()
@@ -179,9 +179,71 @@ def flatten_property(property_dict, page_type=None):
             property_rows.append(property_info)
 
     elif page_type == "property":
+
+        property_info = {
+            "id": property_dict.get("id", ""),
+            "path_id": property_dict.get("pathId", ""),
+            "property_url": property_dict.get("shareURL", None),
+            "name": property_dict.get("name", ""),
+            "address": property_dict.get("displayAddress", ""),
+            "building_name": property_dict.get("buildingName", ""),
+            "house_number": property_dict.get("houseNumber", ""),
+            "street": property_dict.get("street", "") ,
+            "address_line_1": property_dict.get("addressLine1", ""),
+            "address_line_2": property_dict.get("addressLine2", ""),
+            "town": property_dict.get("town", ""),
+            "region": property_dict.get("region", ""),
+            "postcode": property_dict.get("postcode", ""),
+            "country_code": property_dict.get("countryCode", ""),
+            "latitude": nested_get(property_dict, "coordinate", "latitude"),
+            "longitude": nested_get(property_dict, "coordinate", "longitude"),
+            "min_price": nested_get(property_dict, "price", "minPrice"),
+            "max_price": nested_get(property_dict, "price", "maxPrice"),
+            "price": nested_get(property_dict, "price", "price"),
+            "property_type": nested_get(property_dict, "propertyType", "key"),
+            "property_style": nested_get(property_dict, "style", "key"),
+            "furnished_type": property_dict.get("furnishedType", ""),
+            "num_bedrooms": property_dict.get("numBedrooms", ""),
+            "num_bathrooms": property_dict.get("numBathrooms", ""),
+            "num_reception_rooms": property_dict.get("numReceptionRooms", ""),
+            "sale_type": nested_get(property_dict, "saleType", "key"),
+            "epc_rating": nested_get(property_dict, "epc", "ratingShorthand"),
+            "co2_rating": nested_get(
+                property_dict, "epc", "co2RatingShorthand"),
+            "organisation": nested_get(
+                property_dict, "account", "organisation"),
+            "developer": nested_get(property_dict, "account", "developer"),
+            "agent": nested_get(property_dict, "account", "organisation"),
+            "development_status": nested_get(
+                property_dict, "developmentStatus", "key"),
+            "text_description": property_dict["briefText"],
+            "description": clean_text_description(property_dict),
+            "images": get_image_urls(property_dict),
+            "first_posted": property_dict.get("activationTime", ""),
+            "last_updated": property_dict.get("listingUpdatedTime", ""),
+        }
+
+#         property_info["latitude"] = nested_get(property_dict, "coordinate", "latitude")
+#         property_info["longitude"] = nested_get(property_dict, "coordinate", "longitude")
+#         property_info["property_type"] = nested_get(property_dict, "propertyType", "key")
+#         property_info["property_style"] = nested_get(property_dict, "style", "key")
+#         property_info["sale_type"] = nested_get(property_dict, "saleType", "key"),
+#         property_info["epc_rating"] = nested_get(property_dict, "epc", "ratingShorthand")
+#         property_info["co2_rating"] = nested_get(property_dict, "epc", "co2RatingShorthand")
+#         property_info["organisation"] = nested_get(property_dict, "account", "organisation")
+#         property_info["developer"] = nested_get(property_dict, "account", "developer")
+#         property_info["agent"] = nested_get(property_dict, "account", "organisation")
+#         property_info["development_status"] = nested_get(
+#             property_dict, "developmentStatus", "key"
+#         )
+
+#         property_info["min_price"] = nested_get(property_dict, "price", "minPrice")
+#         property_info["max_price"] = nested_get(property_dict, "price", "maxPrice")
+#         property_info["price"] = nested_get(property_dict, "price", "price")
+
         property_info.update(extract_key_info(property_dict))
         property_rows.append(property_info)
-        
+
     return property_rows
 
 
@@ -234,7 +296,7 @@ def convert_html(soup, page_type="search"):
             continue
 
     converted_properties = []
-    
+
     if page_type == "search":
         for property_dict in properties['props']['pageProps']['initialState']['properties']['data']['results']:
             converted_properties.extend(
