@@ -10,12 +10,10 @@ import time
 
 from bs4 import BeautifulSoup
 
-from property_pal import PROJECT_DIRECTORY
-
 
 def save_raw_html(html, page_number, html_path):
     """
-    Saves raw html text to html_folder for conversion
+    Saves raw HTML text to html_path for conversion
     later.
     
     Parameters:
@@ -27,35 +25,63 @@ def save_raw_html(html, page_number, html_path):
         Defined in `scrape_html` - used to organise html
         data.
         
-    html_dir: str, pathlib.WindowsPath, or similar
+    html_path: str, pathlib.WindowsPath, or similar
         Directory in which to store html.
+    
+    Effects:
+    --------
+    Writes HTML code to a dictionary stored in `html_path`,
+    where keys are the `page_number`.
     """
+
     page_number = str(page_number)
     try:
         with open(html_path, "r", encoding="utf-8") as file_path:
             html_dict = json.load(file_path)
     except FileNotFoundError:
         html_dict = {}
-        
+
     html_dict.update({page_number: html})
-    
-    with open(html_path, "w") as fp:
-        json.dump(html_dict, fp)
-        
+
+    with open(html_path, "w") as file_path:
+        json.dump(html_dict, file_path)
+
 
 def scrape_html(url, headers=None):
+    """
+    Function to scrape data from `url` via a
+    get request.
+
+    Parameters:
+    -----------
+    url: str
+        URL for website to be scraped.
+
+    headers: dict
+        Dictionary with keys "Accept-Language" and "User-Agent". 
+        See http://myhttpheader.com/ for help.
+
+    Returns:
+    --------
+    data: Output of requests.get().
+        HTML code stored in data.text.
+
+    status_code: str
+        Status code of get request. Successful requests have
+        status_code = 200.
+
+    """
 
     if headers is None:
         raise ValueError(
             'Please supply `headers`. This should be a dict'
             'with keys "Accept-Language" and "User-Agent".'
             'See http://myhttpheader.com/ for help.'
-        )        
+        )
 
-    
     data = requests.get(url, headers=headers)
     status_code = str(data.status_code)
-    
+
     return data, status_code
 
 
@@ -82,65 +108,3 @@ def get_new_development_urls(soup):
             urls.append(f"https://www.propertypal.com{i['href']}")
     
     return urls
-
-
-def pull(url, headers, page_type):
-    
-    status_code = "200"
-    page_number = 0
-    keep_attempting = True
-
-    while (status_code == "200"
-           and keep_attempting):
-
-        html, status_code = scrape_html(url, headers)
-
-        soup = BeautifulSoup(html.text, 'lxml')
-
-        try:
-            rows = convert_html(soup, page_type=page_type)
-        except:
-            save_raw_html(html.text, page_number, html_path)
-
-        next_button = soup.find("link", {"rel": "next"}, href=True)
-        if next_button is None:
-            keep_attempting = False
-            break
-
-            url = next_button["href"]
-            page_number += 1
-
-        
-# def scrape_html_old(url, headers=None, html_path=HTML_PATH):
-    
-#     if headers is None:
-#         raise ValueError(
-#             'Please supply `headers`. This should be a dict'
-#             'with keys "Accept-Language" and "User-Agent".'
-#             'See http://myhttpheader.com/ for help.'
-#         )        
-
-#     status_code = "200"
-#     page_number = 0
-#     keep_attempting = True
-
-#     while (status_code == "200"
-#            and keep_attempting):
-
-#         data = requests.get(url, headers=headers)
-#         status_code = str(data.status_code)
-
-#         save_raw_html(data.text, page_number, html_path)
-
-#         soup = BeautifulSoup(data.text, 'lxml')
-
-#         next_button = soup.find("link", {"rel": "next"}, href=True)
-
-#         if next_button is None:
-#             keep_attempting = False
-#             break
-
-#         url = next_button["href"]
-#         page_number += 1
-
-#         time.sleep(2)
